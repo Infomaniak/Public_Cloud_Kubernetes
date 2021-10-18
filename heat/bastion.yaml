@@ -7,7 +7,7 @@ parameters:
   ssh_key:
     type: string
     description: SSH key to connect to VMs
-    default: yubikey-jacquetlinho
+    default: your-key
   flavor:
     type: string
     description: flavor used by the bastion
