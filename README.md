@@ -1,2 +1,3 @@
 # Public_Cloud_Kubernetes
-Step by step tutorial for deploying a kubernetes cluster in the infomaniak public cloud
+Step by step tutorial for deploying a kubernetes cluster in the infomaniak Public Cloud
+[Public Cloud](https://www.infomaniak.com/fr/hebergement/public-cloud)
