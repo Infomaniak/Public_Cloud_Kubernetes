@@ -1,0 +1,220 @@
+heat_template_version: 2016-10-14
+description: Kubernetes cluster
+parameters:
+  image:
+    type: string
+    description: Image used for VMs
+    default: Debian 10.11 buster
+  ssh_key:
+    type: string
+    description: SSH key to connect to VMs
+    default: yubikey-jacquetlinho
+  master_flavor:
+    type: string
+    description: flavor used by master nodes
+    default: a4-ram8-disk20-perf1
+  worker_flavor:
+    type: string
+    description: flavor used by worker nodes
+    default: a4-ram8-disk20-perf1
+  bastion_flavor:
+    type: string
+    description: flavor used by the bastion
+    default: a1-ram2-disk20-perf1
+  whitelisted_ip_range:
+    type: string
+    description: ip range allowed to connect to the bastion and the k8s api server
+    default: 10.8.0.0/42
+  subnet_cidr:
+    type: string
+    description: cidr for the private network
+    default: 10.11.12.0/24
+  kube_service_addresses:
+    type: string
+    description: Kubernetes internal network for services.
+    default: 10.233.0.0/18
+  kube_pods_subnet:
+    type: string
+    description: Kubernetes internal network for pods.
+    default: 10.233.64.0/18
+
+resources:
+  # Private Network
+  k8s_net:
+    type: OS::Neutron::Net
+    properties:
+      name: k8s-network
+      value_specs:
+        mtu: 1500
+  k8s_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: k8s-subnet
+      network_id: {get_resource: k8s_net}
+      cidr: {get_param: subnet_cidr}
+      dns_nameservers:
+        - 84.16.67.69
+        - 84.16.67.70
+      ip_version: 4
+  # router between loadbalancer and private network
+  k8s_router:
+    type: OS::Neutron::Router
+    properties:
+      name: k8s-router
+      external_gateway_info: { network: ext-floating1 }
+  k8s_router_subnet_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: {get_resource: k8s_router}
+      subnet: {get_resource: k8s_subnet}
+
+  # master nodes
+  group_masters:
+    type: OS::Nova::ServerGroup
+    properties:
+      name: k8s-masters
+      policies: ["anti-affinity"]
+  k8s_masters:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 3
+      resource_def:
+        type: master.yaml
+        properties:
+          name: k8s-master-%index%
+          servergroup: {get_resource: group_masters}
+          flavor: {get_param: master_flavor}
+          image: {get_param: image}
+          ssh_key: {get_param: ssh_key}
+          network: {get_resource: k8s_net}
+          subnet:  {get_resource: k8s_subnet}
+          pool_id: {get_resource: pool_masters}
+          metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
+          security_groups: {get_resource: securitygroup_masters}
+          allowed_address_pairs:
+            - ip_address: {get_param: kube_service_addresses}
+            - ip_address: {get_param: kube_pods_subnet}
+  securitygroup_masters:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: K8s masters
+      name: k8s-masters
+      rules:
+        - protocol: icmp
+          remote_ip_prefix: {get_param: subnet_cidr}
+        - protocol: tcp
+          direction: ingress
+          remote_ip_prefix: {get_param: subnet_cidr}
+        - protocol: udp
+          direction: ingress
+          remote_ip_prefix: {get_param: subnet_cidr}
+
+  # worker nodes
+  group_workers:
+    type: OS::Nova::ServerGroup
+    properties:
+      name: k8s-workers
+      policies: ["anti-affinity"]
+  k8s_workers:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 2
+      resource_def:
+        type: worker.yaml
+        properties:
+          name: k8s-worker-%index%
+          servergroup: {get_resource: group_workers}
+          flavor: {get_param: worker_flavor}
+          image: {get_param: image}
+          ssh_key: {get_param: ssh_key}
+          network: {get_resource: k8s_net}
+          metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
+          security_groups: {get_resource: securitygroup_workers}
+          allowed_address_pairs:
+            - ip_address: {get_param: kube_service_addresses}
+            - ip_address: {get_param: kube_pods_subnet}
+  securitygroup_workers:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: K8s workers
+      name: k8s-workers
+      rules:
+        - protocol: icmp
+          remote_ip_prefix: {get_param: subnet_cidr}
+        - protocol: tcp
+          direction: ingress
+          remote_ip_prefix: {get_param: subnet_cidr}
+        - protocol: udp
+          direction: ingress
+          remote_ip_prefix: {get_param: subnet_cidr}
+
+  # k8s api loadbalancer
+  loadbalancer_k8s_api:
+    type: OS::Octavia::LoadBalancer
+    properties:
+      name: k8s-api
+      vip_subnet: {get_resource: k8s_subnet}
+  listener_masters:
+    type: OS::Octavia::Listener
+    properties:
+      name: k8s-master
+      loadbalancer: {get_resource: loadbalancer_k8s_api}
+      protocol: HTTPS
+      protocol_port: 6443
+      allowed_cidrs:
+        - {get_param: whitelisted_ip_range}
+        - {get_param: subnet_cidr}
+        - {get_param: kube_service_addresses}
+        - {get_param: kube_pods_subnet}
+  pool_masters:
+    type: OS::Octavia::Pool
+    properties:
+      name: k8s-master
+      listener: {get_resource: listener_masters}
+      lb_algorithm: ROUND_ROBIN
+      protocol: HTTPS
+      session_persistence:
+        type: SOURCE_IP
+  monitor_masters:
+    type: OS::Octavia::HealthMonitor
+    properties:
+      pool: { get_resource: pool_masters }
+      type: HTTPS
+      url_path: /livez?verbose
+      http_method: GET
+      expected_codes: 200
+      delay: 5
+      max_retries: 5
+      timeout: 5
+  loadbalancer_floating:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network_id: ext-floating1
+      port_id: {get_attr: [loadbalancer_k8s_api, vip_port_id]}
+
+  # bastion
+  bastion:
+    type: bastion.yaml
+    depends_on: [ k8s_net, k8s_router ]
+    properties:
+      image: {get_param: image}
+      ssh_key: { get_param: ssh_key }
+      flavor: { get_param: bastion_flavor }
+      whitelisted_ip_range: {get_param: whitelisted_ip_range}
+      network: {get_resource: k8s_net}
+      subnet: {get_resource: k8s_subnet}
+      #bastion_floating_ip: {get_resource: }
+
+outputs:
+  bastion_public_ip:
+    description: Floating IP of the bastion host
+    value: {get_attr: [bastion, resource.bastion_floating_ip, floating_ip_address]}
+  k8s_masters:
+    description: Masters ip addresses
+    value: {get_attr: [k8s_masters, server_ip]}
+  k8s_workers:
+    description: Workers ip addresses
+    value: {get_attr: [k8s_workers, server_ip]}
+  vrrp_public_ip:
+    description: vrrp public ip
+    value: {get_attr: [loadbalancer_floating, floating_ip_address]}

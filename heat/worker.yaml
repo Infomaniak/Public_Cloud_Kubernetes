@@ -1,0 +1,51 @@
+---
+heat_template_version: 2016-10-14
+description: A Kubernetes worker node
+parameters:
+  name:
+    type: string
+    description: Server name
+  image:
+    type: string
+    description: Image used for servers
+  ssh_key:
+    type: string
+    description: SSH key to connect to VMs
+  flavor:
+    type: string
+    description: flavor used by the servers
+  metadata:
+    type: json
+  network:
+    type: string
+    description: Network used by the server
+  security_groups:
+    type: string
+    description: Security groups used by the server
+  allowed_address_pairs:
+    type: json
+    default: []
+  servergroup:
+    type: string
+resources:
+  port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network}
+      security_groups: [{get_param: security_groups}]
+      allowed_address_pairs: {get_param: allowed_address_pairs}
+  server:
+    type: OS::Nova::Server
+    properties:
+      name: {get_param: name}
+      flavor: {get_param: flavor}
+      image: {get_param: image}
+      key_name: {get_param: ssh_key}
+      metadata: {get_param: metadata}
+      networks: [{port: {get_resource: port} }]
+      scheduler_hints:
+        group: {get_param: servergroup}
+outputs:
+  server_ip:
+    description: IP Address of the worker nodes.
+    value: { get_attr: [server, first_address] }

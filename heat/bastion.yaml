@@ -1,0 +1,64 @@
+heat_template_version: 2016-10-14
+parameters:
+  image:
+    type: string
+    description: Image used for VMs
+    default: Debian 10.11 buster
+  ssh_key:
+    type: string
+    description: SSH key to connect to VMs
+    default: yubikey-jacquetlinho
+  flavor:
+    type: string
+    description: flavor used by the bastion
+    default: a1-ram2-disk20-perf1
+  whitelisted_ip_range:
+    type: string
+    description: ip range allowed to connect to the bastion and the k8s api server
+  network:
+    type: string
+    description: Network used by the VM
+  subnet:
+    type: string
+    description: Subnet used by the VM
+resources:
+  bastion_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: ext-floating1
+  bastion_port:
+    type: OS::Neutron::Port
+    properties:
+      name: bastion
+      network: {get_param: network}
+      fixed_ips:
+        - subnet_id: {get_param: subnet}
+      security_groups:
+        - {get_resource: securitygroup_bastion}
+  bastion_instance:
+    type: OS::Nova::Server
+    properties:
+      name: bastion
+      key_name: { get_param: ssh_key }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: [{port: {get_resource: bastion_port} }]
+  association:
+    type: OS::Neutron::FloatingIPAssociation
+    properties:
+      floatingip_id: { get_resource: bastion_floating_ip }
+      port_id: { get_resource: bastion_port }
+  securitygroup_bastion:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Bastion SSH
+      name: bastion
+      rules:
+        - protocol: tcp
+          remote_ip_prefix: {get_param: whitelisted_ip_range}
+          port_range_min: 22
+          port_range_max: 22
+outputs:
+  bastion_public_ip:
+    description: Floating IP of the bastion host
+    value: {get_attr: [bastion_floating_ip, floating_ip_address]}
