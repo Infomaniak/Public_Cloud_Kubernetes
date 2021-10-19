@@ -4,7 +4,7 @@ parameters:
   image:
     type: string
     description: Image used for VMs
-    default: Debian 10.11 buster
+    default: Ubuntu 20.04 LTS Focal Fossa
   ssh_key:
     type: string
     description: SSH key to connect to VMs
