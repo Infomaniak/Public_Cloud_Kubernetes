@@ -2,23 +2,23 @@ all:
   hosts:
     k8s-master-0:
       ansible_host: 10.11.12.163
-      ansible_user: debian
+      ansible_user: ubuntu
       ip: 10.11.12.163
     k8s-master-1:
       ansible_host: 10.11.12.103
-      ansible_user: debian
+      ansible_user: ubuntu
       ip: 10.11.12.103
     k8s-master-2:
       ansible_host: 10.11.12.94
-      ansible_user: debian
+      ansible_user: ubuntu
       ip: 10.11.12.94
     k8s-worker-0:
       ansible_host: 10.11.12.73
-      ansible_user: debian
+      ansible_user: ubuntu
       ip: 10.11.12.73
     k8s-worker-1:
       ansible_host: 10.11.12.180
-      ansible_user: debian
+      ansible_user: ubuntu
       ip: 10.11.12.180
   children:
     kube_control_plane:
@@ -48,4 +48,4 @@ all:
       hosts:
         bastion:
           ansible_host: 195.15.244.254
-          ansible_user: debian
+          ansible_user: ubuntu
