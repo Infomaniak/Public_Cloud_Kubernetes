@@ -66,7 +66,7 @@ Your DNS A record should be setted automatically by external-dns and Infomaniak 
 
 ```bash
 host echoserver.change_domain
-echoserver.leopez.de has address 195.15.245.99
+echoserver.change_domain has address 195.15.245.99
 ```
 
 You can check the status of your Let's encrypt certificate.
@@ -104,7 +104,7 @@ Request Headers:
         host=echoserver.change_domain
         user-agent=curl/7.64.1
         x-forwarded-for=10.8.8.21
-        x-forwarded-host=echoserver.leopez.de
+        x-forwarded-host=echoserver.change_domain
         x-forwarded-port=443
         x-forwarded-proto=https
         x-forwarded-scheme=https
