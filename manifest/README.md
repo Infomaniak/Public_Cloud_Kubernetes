@@ -4,7 +4,7 @@ We'll deploy an echo-server with external DNS, certmanager and an ingress contro
 We'll use the proxy protocol to forward client IP from Octavia loadbalancer to the pod.
 
 - Generate a token on https://manager.infomaniak.com/v3/infomaniak-api
-- Edit manifest file to replace `leopez.de` domain name with yours. 
+- Edit manifest file to replace `change_domain` domain name with yours. 
 - Edit kustomization.yaml and replace `changeme` with the generated token.
 
 Apply the kustomize a first time:
@@ -59,13 +59,13 @@ Your ingress should be ready too.
 ```bash
 kubectl -ndefault get ingress
 NAME         CLASS    HOSTS                  ADDRESS         PORTS     AGE
-echoserver   <none>   echoserver.leopez.de   195.15.245.99   80, 443   5m55s
+echoserver   <none>   echoserver.change_domain   195.15.245.99   80, 443   5m55s
 ```
 
 Your DNS A record should be setted automatically by external-dns and Infomaniak API.
 
 ```bash
-host echoserver.leopez.de
+host echoserver.change_domain
 echoserver.leopez.de has address 195.15.245.99
 ```
 
@@ -80,7 +80,7 @@ echoserver   True    echoserver-cert   20s
 Finaly call the service. You should see a valid Lets encrypt certificate, and your real client IP address in the `x-real-ip` field
 
 ```bash
-curl https://echoserver.leopez.de
+curl https://echoserver.change_domain
 
 Hostname: echoserver-5c79dc5747-rfj9f
 
@@ -97,11 +97,11 @@ Request Information:
         query=
         request_version=1.1
         request_scheme=http
-        request_uri=http://echoserver.leopez.de:8080/
+        request_uri=http://echoserver.change_domain:8080/
 
 Request Headers:
         accept=*/*
-        host=echoserver.leopez.de
+        host=echoserver.change_domain
         user-agent=curl/7.64.1
         x-forwarded-for=10.8.8.21
         x-forwarded-host=echoserver.leopez.de
